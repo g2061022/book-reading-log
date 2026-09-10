@@ -1,0 +1,8 @@
+name = "book-reading-log"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "reading-log-db"
+database_id = "c9905f58-c10d-4f98-83bf-3042e0c438bb"
