@@ -2,7 +2,7 @@
 
 Googleアカウントでログインして使う読書記録サイト。本のタイトルと、内容の重要ポイントを3〜5個、階層的（ツリー構造）にメモできます。記録は全ログインユーザーが互いに閲覧できます。
 
-- **Live**: https://book-reading-log.ono1014130712.workers.dev
+- **Live**: https://book-reading-log.nyoganyoga.workers.dev
 - **Auth**: Google OAuth 2.0(Authorization Code flow)
 - **Storage**: Cloudflare D1(`reading-log-db`) — `users` / `books` / `notes`(自己参照でツリー構造)
 
