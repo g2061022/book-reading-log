@@ -85,7 +85,7 @@ export default {
         const q = (url.searchParams.get('q') || '').trim().slice(0, 100);
         const type = url.searchParams.get('type') === 'author' ? 'author' : 'title';
         if (!q) return json({ results: [] });
-        const results = await searchPublicBooks(q, type);
+        const results = await searchPublicBooks(env, q, type);
         return json({ results });
       }
 

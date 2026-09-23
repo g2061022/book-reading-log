@@ -529,7 +529,7 @@ function setupPublicBookSuggestions(inputEl, boxEl, type, onPick) {
       boxEl.appendChild(el);
     }
     boxEl.hidden = false;
-  }, 350);
+  }, 200);
 
   inputEl.addEventListener('input', runSearch);
   inputEl.addEventListener('blur', () => { boxEl.hidden = true; });

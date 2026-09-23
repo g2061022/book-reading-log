@@ -1,56 +1,46 @@
-function decodeXmlEntities(text) {
-  return text
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&apos;', "'")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
-    .replaceAll('&amp;', '&');
-}
-
-function extractTag(block, tag) {
-  const match = block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
-  return match ? decodeXmlEntities(match[1]).trim() : '';
-}
-
-function extractAllTags(block, tag) {
-  const matches = [...block.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))];
-  return matches.map((m) => decodeXmlEntities(m[1]).trim()).filter(Boolean);
-}
-
-async function searchPublicBooks(query, type) {
-  const param = type === 'author' ? 'creator' : 'title';
-  const ndlUrl = `https://ndlsearch.ndl.go.jp/api/opensearch?${param}=${encodeURIComponent(query)}&cnt=20`;
-
-  let xml;
+async function fetchGoogleBooks(env, field, query, maxResults) {
+  const params = new URLSearchParams({
+    q: `${field}:${query}`,
+    maxResults: String(maxResults),
+    langRestrict: 'ja',
+    key: env.GOOGLE_BOOKS_API_KEY,
+  });
   try {
-    const res = await fetch(ndlUrl);
+    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?${params.toString()}`);
     if (!res.ok) return [];
-    xml = await res.text();
+    const data = await res.json();
+    return data.items || [];
   } catch {
     return [];
   }
+}
 
-  const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((m) => m[1]);
-
+async function searchPublicBooks(env, query, type) {
   if (type === 'author') {
+    const items = await fetchGoogleBooks(env, 'inauthor', query, 20);
     const names = new Set();
     for (const item of items) {
-      for (const creator of extractAllTags(item, 'dc:creator')) {
-        if (creator.includes(query)) names.add(creator);
+      for (const author of item.volumeInfo?.authors || []) {
+        if (author.includes(query)) names.add(author);
       }
     }
     return [...names].slice(0, 8).map((name) => ({ name }));
   }
 
+  // Title search: also search by author name so remembering only the
+  // author still surfaces their books, then merge both result sets.
+  const [byTitle, byAuthor] = await Promise.all([
+    fetchGoogleBooks(env, 'intitle', query, 10),
+    fetchGoogleBooks(env, 'inauthor', query, 10),
+  ]);
+
   const seen = new Set();
   const results = [];
-  for (const item of items) {
-    const title = extractTag(item, 'dc:title');
+  for (const item of [...byTitle, ...byAuthor]) {
+    const title = item.volumeInfo?.title;
     if (!title || seen.has(title)) continue;
     seen.add(title);
-    const author = extractAllTags(item, 'dc:creator').slice(0, 3).join(' / ');
+    const author = (item.volumeInfo?.authors || []).join(' / ');
     results.push({ title, author });
     if (results.length >= 8) break;
   }
