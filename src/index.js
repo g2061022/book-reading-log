@@ -12,6 +12,7 @@ import {
 } from './auth.js';
 import { upsertUser, createBook, updateBook, deleteBook, getBookOwner, listBooks } from './db.js';
 import { loginPage, appPage } from './html.js';
+import { searchPublicBooks } from './booksearch.js';
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -79,6 +80,14 @@ export default {
 
     if (url.pathname.startsWith('/api/')) {
       if (!session) return json({ error: 'ログインが必要です' }, 401);
+
+      if (url.pathname === '/api/book-search' && request.method === 'GET') {
+        const q = (url.searchParams.get('q') || '').trim().slice(0, 100);
+        const type = url.searchParams.get('type') === 'author' ? 'author' : 'title';
+        if (!q) return json({ results: [] });
+        const results = await searchPublicBooks(q, type);
+        return json({ results });
+      }
 
       if (url.pathname === '/api/books' && request.method === 'GET') {
         const books = await listBooks(env);

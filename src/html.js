@@ -127,6 +127,7 @@ button.ghost.danger:hover { border-color: var(--danger); color: var(--danger); }
   font-size: 0.92rem;
 }
 .suggestions .suggestion-item:hover { background: var(--primary-tint); }
+.suggestions .suggestion-sub { font-size: 0.78rem; color: var(--text-sub); margin-top: 2px; }
 
 #emptyState { text-align: center; color: var(--text-sub); padding: 60px 0; }
 
@@ -476,33 +477,71 @@ function cloneForEdit(nodes) {
   return nodes.map((n) => ({ content: n.content, children: cloneForEdit(n.children || []) }));
 }
 
-function setupFieldSuggestions(inputEl, boxEl, getOptions) {
-  function show() {
-    const q = inputEl.value.trim().toLowerCase();
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+function setupPublicBookSuggestions(inputEl, boxEl, type, onPick) {
+  const runSearch = debounce(async () => {
+    const q = inputEl.value.trim();
+    if (!q) { boxEl.hidden = true; boxEl.innerHTML = ''; return; }
+
+    let results = [];
+    try {
+      const res = await fetch('/api/book-search?type=' + type + '&q=' + encodeURIComponent(q));
+      if (res.ok) {
+        const data = await res.json();
+        results = data.results || [];
+      }
+    } catch {
+      results = [];
+    }
+
+    if (inputEl.value.trim() !== q) return; // stale response, a newer search is in flight
+
     boxEl.innerHTML = '';
-    if (!q) { boxEl.hidden = true; return; }
-    const matches = [...new Set(getOptions())].filter((v) => v.toLowerCase().includes(q)).slice(0, 8);
-    if (matches.length === 0) { boxEl.hidden = true; return; }
-    for (const value of matches) {
-      const item = document.createElement('div');
-      item.className = 'suggestion-item';
-      item.textContent = value;
-      item.addEventListener('mousedown', (e) => {
+    if (results.length === 0) { boxEl.hidden = true; return; }
+    for (const item of results) {
+      const el = document.createElement('div');
+      el.className = 'suggestion-item';
+      if (type === 'title') {
+        const titleLine = document.createElement('div');
+        titleLine.textContent = item.title;
+        el.appendChild(titleLine);
+        if (item.author) {
+          const authorLine = document.createElement('div');
+          authorLine.className = 'suggestion-sub';
+          authorLine.textContent = item.author;
+          el.appendChild(authorLine);
+        }
+      } else {
+        el.textContent = item.name;
+      }
+      el.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        inputEl.value = value;
+        onPick(item);
         boxEl.hidden = true;
       });
-      boxEl.appendChild(item);
+      boxEl.appendChild(el);
     }
     boxEl.hidden = false;
-  }
-  inputEl.addEventListener('input', show);
-  inputEl.addEventListener('focus', show);
+  }, 350);
+
+  inputEl.addEventListener('input', runSearch);
   inputEl.addEventListener('blur', () => { boxEl.hidden = true; });
 }
 
-setupFieldSuggestions(titleInput, document.getElementById('titleSuggestions'), () => allBooks.map((b) => b.title));
-setupFieldSuggestions(authorInput, document.getElementById('authorInputSuggestions'), () => allBooks.map((b) => b.author).filter(Boolean));
+setupPublicBookSuggestions(titleInput, document.getElementById('titleSuggestions'), 'title', (item) => {
+  titleInput.value = item.title;
+  if (item.author && !authorInput.value.trim()) authorInput.value = item.author;
+});
+setupPublicBookSuggestions(authorInput, document.getElementById('authorInputSuggestions'), 'author', (item) => {
+  authorInput.value = item.name;
+});
 
 document.getElementById('newBookBtn').addEventListener('click', () => openDialog(null));
 document.getElementById('closeDialogBtn').addEventListener('click', () => dialog.close());
