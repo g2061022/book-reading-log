@@ -46,8 +46,8 @@ function buildTree(flatNotes) {
 
 async function createBook(env, userId, title, author, notes) {
   const cleaned = cleanNodes(notes);
-  if (cleaned.length < 3 || cleaned.length > 5) {
-    throw new Error('重要ポイントは3〜5個で入力してください');
+  if (cleaned.length < 1 || cleaned.length > 5) {
+    throw new Error('重要ポイントは1〜5個で入力してください');
   }
   const res = await env.DB.prepare(
     'INSERT INTO books (user_id, title, author) VALUES (?, ?, ?)'
@@ -59,8 +59,8 @@ async function createBook(env, userId, title, author, notes) {
 
 async function updateBook(env, bookId, title, author, notes) {
   const cleaned = cleanNodes(notes);
-  if (cleaned.length < 3 || cleaned.length > 5) {
-    throw new Error('重要ポイントは3〜5個で入力してください');
+  if (cleaned.length < 1 || cleaned.length > 5) {
+    throw new Error('重要ポイントは1〜5個で入力してください');
   }
   await env.DB.prepare('UPDATE books SET title = ?, author = ? WHERE id = ?')
     .bind(title, author || null, bookId).run();

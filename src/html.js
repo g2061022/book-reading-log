@@ -308,7 +308,7 @@ function appPage(user) {
         <input type="text" id="titleInput" maxlength="200" required>
         <label for="authorInput">著者(任意)</label>
         <input type="text" id="authorInput" maxlength="120">
-        <label>重要なこと(3〜5つ・子項目も追加できます)</label>
+        <label>重要なこと(1〜5つ・子項目も追加できます)</label>
         <div class="points-hint">各ポイントに「＋子項目」で詳細メモを階層的に追加できます</div>
         <div id="pointsContainer"></div>
         <button type="button" class="ghost" id="addPointBtn">＋ 重要ポイントを追加</button>
@@ -380,7 +380,7 @@ function renderNodes(nodes, parentEl, depth) {
     addChild.addEventListener('click', () => { node.children.push(emptyNode()); renderPoints(); });
     row.appendChild(addChild);
 
-    if (depth > 0 || pointsModel.length > 3) {
+    if (depth > 0 || pointsModel.length > 1) {
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'icon-btn danger';
@@ -418,7 +418,7 @@ function openDialog(book) {
     dialogTitle.textContent = '記録を追加';
     titleInput.value = '';
     authorInput.value = '';
-    pointsModel = [emptyNode(), emptyNode(), emptyNode()];
+    pointsModel = [emptyNode()];
   }
   renderPoints();
   dialog.showModal();
@@ -438,8 +438,8 @@ form.addEventListener('submit', async (e) => {
   const title = titleInput.value.trim();
   if (!title) return;
   const validPoints = pointsModel.filter((p) => p.content.trim());
-  if (validPoints.length < 3 || validPoints.length > 5) {
-    formError.textContent = '重要ポイントは3〜5個入力してください(空欄は除きます)';
+  if (validPoints.length < 1 || validPoints.length > 5) {
+    formError.textContent = '重要ポイントは1〜5個入力してください(空欄は除きます)';
     return;
   }
 
