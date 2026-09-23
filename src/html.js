@@ -215,6 +215,7 @@ dialog#bookDialog::backdrop { background: rgba(20, 22, 30, 0.45); }
 }
 label { display: block; font-size: 0.85rem; color: var(--text-sub); margin: 14px 0 6px; }
 label:first-of-type { margin-top: 0; }
+.field-wrap { position: relative; }
 input[type=text] {
   width: 100%;
   font: inherit;
@@ -344,9 +345,15 @@ function appPage(user) {
       </div>
       <div class="dialog-body">
         <label for="titleInput">タイトル</label>
-        <input type="text" id="titleInput" maxlength="200" required>
+        <div class="field-wrap">
+          <input type="text" id="titleInput" maxlength="200" required autocomplete="off">
+          <div id="titleSuggestions" class="suggestions" hidden></div>
+        </div>
         <label for="authorInput">著者(任意)</label>
-        <input type="text" id="authorInput" maxlength="120">
+        <div class="field-wrap">
+          <input type="text" id="authorInput" maxlength="120" autocomplete="off">
+          <div id="authorInputSuggestions" class="suggestions" hidden></div>
+        </div>
         <label>重要なこと(1〜5つ・子項目も追加できます)</label>
         <div class="points-hint">各ポイントに「＋子項目」で詳細メモを階層的に追加できます</div>
         <div id="pointsContainer"></div>
@@ -468,6 +475,34 @@ function openDialog(book) {
 function cloneForEdit(nodes) {
   return nodes.map((n) => ({ content: n.content, children: cloneForEdit(n.children || []) }));
 }
+
+function setupFieldSuggestions(inputEl, boxEl, getOptions) {
+  function show() {
+    const q = inputEl.value.trim().toLowerCase();
+    boxEl.innerHTML = '';
+    if (!q) { boxEl.hidden = true; return; }
+    const matches = [...new Set(getOptions())].filter((v) => v.toLowerCase().includes(q)).slice(0, 8);
+    if (matches.length === 0) { boxEl.hidden = true; return; }
+    for (const value of matches) {
+      const item = document.createElement('div');
+      item.className = 'suggestion-item';
+      item.textContent = value;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        inputEl.value = value;
+        boxEl.hidden = true;
+      });
+      boxEl.appendChild(item);
+    }
+    boxEl.hidden = false;
+  }
+  inputEl.addEventListener('input', show);
+  inputEl.addEventListener('focus', show);
+  inputEl.addEventListener('blur', () => { boxEl.hidden = true; });
+}
+
+setupFieldSuggestions(titleInput, document.getElementById('titleSuggestions'), () => allBooks.map((b) => b.title));
+setupFieldSuggestions(authorInput, document.getElementById('authorInputSuggestions'), () => allBooks.map((b) => b.author).filter(Boolean));
 
 document.getElementById('newBookBtn').addEventListener('click', () => openDialog(null));
 document.getElementById('closeDialogBtn').addEventListener('click', () => dialog.close());
