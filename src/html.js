@@ -50,13 +50,21 @@ header.appbar .user {
   font-size: 0.85rem;
   color: var(--text-sub);
 }
-header.appbar .user img {
+header.appbar .user a { color: var(--text-sub); text-decoration: none; }
+header.appbar .user a:hover { text-decoration: underline; }
+
+.avatar-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   border-radius: 50%;
+  background: var(--primary-tint);
+  font-size: 1rem;
+  flex: none;
 }
-header.appbar .user a { color: var(--text-sub); text-decoration: none; }
-header.appbar .user a:hover { text-decoration: underline; }
+.avatar-emoji.small { width: 22px; height: 22px; font-size: 0.85rem; }
 
 main {
   max-width: 760px;
@@ -282,6 +290,43 @@ input[type=text] {
   text-decoration: none;
 }
 .google-btn:hover { border-color: var(--primary); }
+
+.settings-wrap {
+  max-width: 480px;
+  margin: 8vh auto;
+  padding: 0 16px;
+}
+.settings-wrap .back-link { display: inline-block; margin-bottom: 14px; color: var(--text-sub); text-decoration: none; font-size: 0.85rem; }
+.settings-wrap .back-link:hover { text-decoration: underline; }
+.settings-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 26px;
+}
+.settings-card h1 { font-size: 1.2rem; margin: 0 0 6px; }
+.settings-card p.hint { color: var(--text-sub); font-size: 0.85rem; margin: 0 0 20px; }
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+.emoji-option {
+  font-size: 1.3rem;
+  padding: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+}
+.emoji-option:hover { border-color: var(--primary); }
+.emoji-option.selected { border-color: var(--primary); background: var(--primary-tint); }
+.settings-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; }
+#settingsStatus { font-size: 0.85rem; min-height: 1.2em; }
+#settingsStatus.error { color: var(--danger); }
+#settingsStatus.ok { color: #0a7a2f; }
 `;
 
 function loginPage() {
@@ -320,8 +365,9 @@ function appPage(user) {
   <header class="appbar">
     <div class="brand"><div class="bar"></div><h1>読書記録</h1></div>
     <div class="user">
-      ${user.picture ? `<img src="${user.picture}" alt="">` : ''}
-      <span>${escapeHtml(user.name)}</span>
+      <span class="avatar-emoji">${escapeHtml(user.avatar_emoji)}</span>
+      <span>${escapeHtml(user.display_name)}</span>
+      <a href="/settings">設定</a>
       <a href="/auth/logout">ログアウト</a>
     </div>
   </header>
@@ -369,9 +415,83 @@ function appPage(user) {
   </dialog>
 
 <script>
-window.CURRENT_USER = ${JSON.stringify({ id: user.sub, name: user.name, picture: user.picture })};
+window.CURRENT_USER = ${JSON.stringify({ id: user.id, name: user.display_name, emoji: user.avatar_emoji })};
 </script>
 <script>${CLIENT_JS}</script>
+</body>
+</html>`;
+}
+
+function settingsPage(user, emojiOptions) {
+  return `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アカウント設定 - 読書記録</title>
+<style>${STYLE}</style>
+</head>
+<body>
+  <div class="settings-wrap">
+    <a class="back-link" href="/">← 記録一覧に戻る</a>
+    <div class="settings-card">
+      <h1>アカウント設定</h1>
+      <p class="hint">ここで設定した表示名とアイコンだけが、他のユーザーに公開されます。Googleアカウントの本名や写真は使われません。</p>
+      <form id="settingsForm">
+        <label for="nameInput">表示名</label>
+        <input type="text" id="nameInput" maxlength="40" value="${escapeHtml(user.display_name)}" required>
+        <label>アイコン</label>
+        <div class="emoji-grid" id="emojiGrid"></div>
+        <div class="settings-foot">
+          <div id="settingsStatus"></div>
+          <button type="submit" class="primary">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+<script>
+const EMOJI_OPTIONS = ${JSON.stringify(emojiOptions)};
+let selectedEmoji = ${JSON.stringify(user.avatar_emoji)};
+const grid = document.getElementById('emojiGrid');
+const statusEl = document.getElementById('settingsStatus');
+
+function renderGrid() {
+  grid.innerHTML = '';
+  for (const emoji of EMOJI_OPTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'emoji-option' + (emoji === selectedEmoji ? ' selected' : '');
+    btn.textContent = emoji;
+    btn.addEventListener('click', () => { selectedEmoji = emoji; renderGrid(); });
+    grid.appendChild(btn);
+  }
+}
+renderGrid();
+
+document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  statusEl.textContent = '';
+  statusEl.className = '';
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) return;
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: name, avatar_emoji: selectedEmoji }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || '保存に失敗しました');
+    }
+    statusEl.textContent = '保存しました';
+    statusEl.className = 'ok';
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.className = 'error';
+  }
+});
+</script>
 </body>
 </html>`;
 }
@@ -624,10 +744,11 @@ function renderCard(book) {
   }
   const meta = document.createElement('div');
   meta.className = 'book-card-meta';
-  if (book.user.picture) {
-    const img = document.createElement('img');
-    img.src = book.user.picture;
-    meta.appendChild(img);
+  if (book.user.emoji) {
+    const avatar = document.createElement('span');
+    avatar.className = 'avatar-emoji small';
+    avatar.textContent = book.user.emoji;
+    meta.appendChild(avatar);
   }
   const who = document.createElement('span');
   who.textContent = book.user.name + ' ・ ' + fmtDate(book.created_at);
@@ -738,4 +859,4 @@ searchInput.addEventListener('blur', () => { suggestionsEl.hidden = true; });
 loadBooks();
 `;
 
-export { loginPage, appPage };
+export { loginPage, appPage, settingsPage };

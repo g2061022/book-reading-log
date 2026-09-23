@@ -10,8 +10,18 @@ import {
   exchangeCodeForUser,
   randomState,
 } from './auth.js';
-import { upsertUser, createBook, updateBook, deleteBook, getBookOwner, listBooks } from './db.js';
-import { loginPage, appPage } from './html.js';
+import {
+  AVATAR_EMOJIS,
+  upsertUser,
+  getUserProfile,
+  updateUserProfile,
+  createBook,
+  updateBook,
+  deleteBook,
+  getBookOwner,
+  listBooks,
+} from './db.js';
+import { loginPage, appPage, settingsPage } from './html.js';
 import { searchPublicBooks } from './booksearch.js';
 
 function json(data, status = 200, headers = {}) {
@@ -75,11 +85,31 @@ export default {
       if (!session) {
         return new Response(loginPage(), { headers: { 'content-type': 'text/html; charset=utf-8' } });
       }
-      return new Response(appPage(session), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+      const profile = await getUserProfile(env, session.sub);
+      return new Response(appPage(profile), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+    }
+
+    if (url.pathname === '/settings' && request.method === 'GET') {
+      if (!session) {
+        return new Response(null, { status: 302, headers: { Location: '/' } });
+      }
+      const profile = await getUserProfile(env, session.sub);
+      return new Response(settingsPage(profile, AVATAR_EMOJIS), { headers: { 'content-type': 'text/html; charset=utf-8' } });
     }
 
     if (url.pathname.startsWith('/api/')) {
       if (!session) return json({ error: 'ログインが必要です' }, 401);
+
+      if (url.pathname === '/api/settings' && request.method === 'POST') {
+        const body = await request.json().catch(() => null);
+        if (!body) return json({ error: '不正なリクエストです' }, 400);
+        try {
+          await updateUserProfile(env, session.sub, body.display_name, body.avatar_emoji);
+          return json({ ok: true });
+        } catch (err) {
+          return json({ error: err.message }, 400);
+        }
+      }
 
       if (url.pathname === '/api/book-search' && request.method === 'GET') {
         const q = (url.searchParams.get('q') || '').trim().slice(0, 100);

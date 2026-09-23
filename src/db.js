@@ -1,8 +1,33 @@
+const AVATAR_EMOJIS = ['😀', '😎', '🦊', '🐱', '🐶', '🐼', '🦁', '🐸', '🦉', '🐧', '🌟', '🍀', '📚', '🎨', '⚡', '🌙', '☀️', '🍉', '🎯', '🚀', '🌈', '🔥', '💡', '🎵'];
+const ANON_WORDS = ['読書家', '本の虫', '活字中毒', '物語好き', 'ページの旅人', '静かな読者', '積読家'];
+
+function randomDisplayName() {
+  const word = ANON_WORDS[Math.floor(Math.random() * ANON_WORDS.length)];
+  const num = 1000 + Math.floor(Math.random() * 9000);
+  return `${word}${num}`;
+}
+
+function randomAvatarEmoji() {
+  return AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];
+}
+
 async function upsertUser(env, user) {
   await env.DB.prepare(
-    `INSERT INTO users (id, email, name, picture) VALUES (?, ?, ?, ?)
+    `INSERT INTO users (id, email, name, picture, display_name, avatar_emoji) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET email = excluded.email, name = excluded.name, picture = excluded.picture`
-  ).bind(user.sub, user.email, user.name, user.picture).run();
+  ).bind(user.sub, user.email, user.name, user.picture, randomDisplayName(), randomAvatarEmoji()).run();
+}
+
+async function getUserProfile(env, userId) {
+  return env.DB.prepare('SELECT id, display_name, avatar_emoji FROM users WHERE id = ?').bind(userId).first();
+}
+
+async function updateUserProfile(env, userId, displayName, avatarEmoji) {
+  const name = (displayName || '').toString().trim().slice(0, 40);
+  if (!name) throw new Error('表示名を入力してください');
+  if (!AVATAR_EMOJIS.includes(avatarEmoji)) throw new Error('不正なアイコンです');
+  await env.DB.prepare('UPDATE users SET display_name = ?, avatar_emoji = ? WHERE id = ?')
+    .bind(name, avatarEmoji, userId).run();
 }
 
 function cleanNodes(nodes, depth = 0) {
@@ -81,7 +106,7 @@ async function getBookOwner(env, bookId) {
 async function listBooks(env) {
   const { results: books } = await env.DB.prepare(
     `SELECT books.id, books.title, books.author, books.created_at,
-            users.id as user_id, users.name as user_name, users.picture as user_picture
+            users.id as user_id, users.display_name as user_name, users.avatar_emoji as user_emoji
      FROM books JOIN users ON users.id = books.user_id
      ORDER BY books.id DESC LIMIT 200`
   ).all();
@@ -106,9 +131,19 @@ async function listBooks(env) {
     title: b.title,
     author: b.author,
     created_at: b.created_at,
-    user: { id: b.user_id, name: b.user_name, picture: b.user_picture },
+    user: { id: b.user_id, name: b.user_name, emoji: b.user_emoji },
     notes: buildTree(notesByBook.get(b.id) || []),
   }));
 }
 
-export { upsertUser, createBook, updateBook, deleteBook, getBookOwner, listBooks };
+export {
+  AVATAR_EMOJIS,
+  upsertUser,
+  getUserProfile,
+  updateUserProfile,
+  createBook,
+  updateBook,
+  deleteBook,
+  getBookOwner,
+  listBooks,
+};
