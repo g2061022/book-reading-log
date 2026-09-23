@@ -93,6 +93,41 @@ button.ghost {
 button.ghost:hover { border-color: var(--primary); color: var(--primary); }
 button.ghost.danger:hover { border-color: var(--danger); color: var(--danger); }
 
+.search-wrap { position: relative; margin-bottom: 18px; }
+.search-wrap input[type=text] {
+  width: 100%;
+  font: inherit;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.search-wrap input[type=text]:focus { outline: none; border-color: var(--primary); }
+.suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(20, 22, 30, 0.08);
+  z-index: 5;
+  overflow: hidden;
+}
+.suggestions .suggestion-label {
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  background: var(--bg);
+}
+.suggestions .suggestion-item {
+  padding: 9px 14px;
+  cursor: pointer;
+  font-size: 0.92rem;
+}
+.suggestions .suggestion-item:hover { background: var(--primary-tint); }
+
 #emptyState { text-align: center; color: var(--text-sub); padding: 60px 0; }
 
 .book-card {
@@ -293,6 +328,10 @@ function appPage(user) {
       <h2>みんなの記録</h2>
       <button class="primary" id="newBookBtn">＋ 記録を追加</button>
     </div>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="タイトル・著者名で検索...">
+      <div id="authorSuggestions" class="suggestions" hidden></div>
+    </div>
     <div id="list"></div>
     <div id="emptyState" hidden>まだ記録がありません。最初の一冊を登録しましょう。</div>
   </main>
@@ -339,6 +378,8 @@ const CLIENT_JS = `
 const me = window.CURRENT_USER;
 const listEl = document.getElementById('list');
 const emptyEl = document.getElementById('emptyState');
+const searchInput = document.getElementById('searchInput');
+const suggestionsEl = document.getElementById('authorSuggestions');
 const dialog = document.getElementById('bookDialog');
 const form = document.getElementById('bookForm');
 const titleInput = document.getElementById('titleInput');
@@ -557,13 +598,68 @@ async function deleteBook(id) {
   await loadBooks();
 }
 
+let allBooks = [];
+
 async function loadBooks() {
   const res = await fetch('/api/books');
   const data = await res.json();
-  listEl.innerHTML = '';
-  emptyEl.hidden = data.books.length !== 0;
-  for (const book of data.books) listEl.appendChild(renderCard(book));
+  allBooks = data.books;
+  applyFilter();
 }
+
+function applyFilter() {
+  const q = searchInput.value.trim().toLowerCase();
+  const filtered = q
+    ? allBooks.filter((b) =>
+        b.title.toLowerCase().includes(q) || (b.author && b.author.toLowerCase().includes(q))
+      )
+    : allBooks;
+
+  listEl.innerHTML = '';
+  emptyEl.hidden = filtered.length !== 0;
+  emptyEl.textContent = allBooks.length === 0
+    ? 'まだ記録がありません。最初の一冊を登録しましょう。'
+    : '該当する記録が見つかりません。';
+  for (const book of filtered) listEl.appendChild(renderCard(book));
+
+  renderAuthorSuggestions(q);
+}
+
+function renderAuthorSuggestions(q) {
+  if (!q) {
+    suggestionsEl.hidden = true;
+    suggestionsEl.innerHTML = '';
+    return;
+  }
+  const authors = [...new Set(allBooks.map((b) => b.author).filter(Boolean))];
+  const matches = authors.filter((a) => a.toLowerCase().startsWith(q)).slice(0, 8);
+  suggestionsEl.innerHTML = '';
+  if (matches.length === 0) {
+    suggestionsEl.hidden = true;
+    return;
+  }
+  const label = document.createElement('div');
+  label.className = 'suggestion-label';
+  label.textContent = '著者名の候補';
+  suggestionsEl.appendChild(label);
+  for (const author of matches) {
+    const item = document.createElement('div');
+    item.className = 'suggestion-item';
+    item.textContent = author;
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      searchInput.value = author;
+      applyFilter();
+      suggestionsEl.hidden = true;
+    });
+    suggestionsEl.appendChild(item);
+  }
+  suggestionsEl.hidden = false;
+}
+
+searchInput.addEventListener('input', applyFilter);
+searchInput.addEventListener('focus', applyFilter);
+searchInput.addEventListener('blur', () => { suggestionsEl.hidden = true; });
 
 loadBooks();
 `;
